@@ -27,10 +27,11 @@ use super::{get_projected_output_ordering, statistics::MinMaxStatistics};
 use crate::datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl};
 use crate::{error::Result, scalar::ScalarValue};
 
-use arrow::array::{ArrayData, BufferBuilder};
+use arrow::array::{
+    ArrayData, ArrayRef, BufferBuilder, DictionaryArray, RecordBatch, RecordBatchOptions,
+};
 use arrow::buffer::Buffer;
 use arrow::datatypes::{ArrowNativeType, UInt16Type};
-use arrow_array::{ArrayRef, DictionaryArray, RecordBatch, RecordBatchOptions};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion_common::stats::Precision;
 use datafusion_common::{
@@ -639,7 +640,7 @@ fn create_output_array(
 
 #[cfg(test)]
 mod tests {
-    use arrow_array::Int32Array;
+    use arrow::array::Int32Array;
 
     use super::*;
     use crate::{test::columns, test_util::aggr_test_schema};

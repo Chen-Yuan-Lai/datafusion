@@ -32,9 +32,8 @@ use crate::projection::{
     all_alias_free_columns, new_projections_for_columns, ProjectionExec,
 };
 
+use arrow::array::{RecordBatch, RecordBatchOptions};
 use arrow::datatypes::SchemaRef;
-use arrow::record_batch::RecordBatch;
-use arrow_array::RecordBatchOptions;
 use arrow_schema::Schema;
 use datafusion_common::{
     internal_err, plan_err, project_schema, Constraints, Result, ScalarValue,
