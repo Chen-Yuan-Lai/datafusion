@@ -53,10 +53,10 @@ use arrow::{
         Int8Type, IntervalDayTimeType, IntervalMonthDayNanoType, IntervalUnit,
         IntervalYearMonthType, TimeUnit, TimestampMicrosecondType,
         TimestampMillisecondType, TimestampNanosecondType, TimestampSecondType,
-        UInt16Type, UInt32Type, UInt64Type, UInt8Type, DECIMAL128_MAX_PRECISION,
+        UInt16Type, UInt32Type, UInt64Type, UInt8Type, UnionFields, UnionMode,
+        DECIMAL128_MAX_PRECISION,
     },
 };
-use arrow_schema::{UnionFields, UnionMode};
 
 use crate::format::DEFAULT_CAST_OPTIONS;
 use half::f16;
