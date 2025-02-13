@@ -26,7 +26,7 @@ use datafusion_common::{
     exec_err, internal_datafusion_err, internal_err, not_impl_err, plan_err,
     types::{LogicalType, NativeType},
     utils::list_ndims,
-    Result,
+    Diagnostic, Result, Span,
 };
 use datafusion_expr_common::{
     signature::{
@@ -469,7 +469,15 @@ fn get_valid_types(
         if length != expected_length {
             return plan_err!(
                 "Function '{function_name}' expects {expected_length} arguments but received {length}"
-            );
+            ).map_err(|err| {
+                err.with_diagnostic(
+                    Diagnostic::new_error(
+                        format!("Function '{function_name}' expects {expected_length} arguments but received {length}"),
+                        Span::new(0, 0),
+
+                    )
+                )
+            });
         }
         Ok(())
     }
