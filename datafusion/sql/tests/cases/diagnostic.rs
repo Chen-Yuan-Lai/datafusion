@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
 use datafusion_common::{Diagnostic, Location, Result, Span};
+use datafusion_expr::test::function_stub::sum_udaf;
 use datafusion_sql::planner::{ParserOptions, SqlToRel};
 use regex::Regex;
 use sqlparser::{dialect::GenericDialect, parser::Parser};
+use std::collections::HashMap;
 
 use crate::{MockContextProvider, MockSessionState};
 
@@ -36,14 +36,22 @@ fn do_query(sql: &'static str) -> Diagnostic {
         ..ParserOptions::default()
     };
 
-    let state = MockSessionState::default();
+    let state = MockSessionState::default().with_aggregate_function(sum_udaf());
     let context = MockContextProvider { state };
     let sql_to_rel = SqlToRel::new_with_options(&context, options);
     match sql_to_rel.sql_statement_to_plan(statement) {
         Ok(_) => panic!("expected error"),
+        // Err(err) => match err.diagnostic() {
+        //     Some(diag) => diag.clone(),
+        //     None => panic!("expected diagnostic"),
+        // },
         Err(err) => match err.diagnostic() {
             Some(diag) => diag.clone(),
-            None => panic!("expected diagnostic"),
+            None => {
+                // 使用 dbg! 來查看錯誤的內容
+                dbg!(&err);
+                panic!("expected diagnostic")
+            }
         },
     }
 }
@@ -128,6 +136,19 @@ fn get_spans(query: &'static str) -> HashMap<String, Span> {
     }
 
     spans
+}
+
+#[test]
+fn test_wrong_argument_number() -> Result<()> {
+    let query = "SELECT /*a*/sum(1, 2)/*a*/";
+    let spans = get_spans(query);
+    let diag = do_query(query);
+    assert_eq!(
+        diag.message,
+        "Wrong number of arguments for sum function call"
+    );
+    assert_eq!(diag.span, Some(spans["a"]));
+    Ok(())
 }
 
 #[test]
