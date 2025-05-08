@@ -16,6 +16,7 @@
 // under the License.
 
 use super::*;
+use insta::assert_snapshot;
 use rstest::rstest;
 
 use datafusion::config::ConfigOptions;
@@ -174,31 +175,29 @@ async fn csv_explain_plans() {
     println!("SQL: {sql}");
     //
     // Verify schema
-    let expected = vec![
-        "Explain [plan_type:Utf8, plan:Utf8]",
-        "  Projection: aggregate_test_100.c1 [c1:Utf8]",
-        "    Filter: aggregate_test_100.c2 > Int64(10) [c1:Utf8, c2:Int8, c3:Int16, c4:Int16, c5:Int32, c6:Int64, c7:Int16, c8:Int32, c9:UInt32, c10:UInt64, c11:Float32, c12:Float64, c13:Utf8]",
-        "      TableScan: aggregate_test_100 [c1:Utf8, c2:Int8, c3:Int16, c4:Int16, c5:Int32, c6:Int64, c7:Int16, c8:Int32, c9:UInt32, c10:UInt64, c11:Float32, c12:Float64, c13:Utf8]",
-    ];
     let formatted = plan.display_indent_schema().to_string();
-    let actual: Vec<&str> = formatted.trim().lines().collect();
-    assert_eq!(
-        expected, actual,
-        "\n\nexpected:\n\n{expected:#?}\nactual:\n\n{actual:#?}\n\n"
+    let actual = formatted.trim();
+    assert_snapshot!(
+        actual,
+        @r###"
+    Explain [plan_type:Utf8, plan:Utf8]
+      Projection: aggregate_test_100.c1 [c1:Utf8]
+        Filter: aggregate_test_100.c2 > Int64(10) [c1:Utf8, c2:Int8, c3:Int16, c4:Int16, c5:Int32, c6:Int64, c7:Int16, c8:Int32, c9:UInt32, c10:UInt64, c11:Float32, c12:Float64, c13:Utf8]
+          TableScan: aggregate_test_100 [c1:Utf8, c2:Int8, c3:Int16, c4:Int16, c5:Int32, c6:Int64, c7:Int16, c8:Int32, c9:UInt32, c10:UInt64, c11:Float32, c12:Float64, c13:Utf8]
+    "###
     );
     //
     // Verify the text format of the plan
-    let expected = vec![
-        "Explain",
-        "  Projection: aggregate_test_100.c1",
-        "    Filter: aggregate_test_100.c2 > Int64(10)",
-        "      TableScan: aggregate_test_100",
-    ];
     let formatted = plan.display_indent().to_string();
-    let actual: Vec<&str> = formatted.trim().lines().collect();
-    assert_eq!(
-        expected, actual,
-        "\n\nexpected:\n\n{expected:#?}\nactual:\n\n{actual:#?}\n\n"
+    let actual = formatted.trim();
+    assert_snapshot!(
+        actual,
+        @r###"
+    Explain
+      Projection: aggregate_test_100.c1
+        Filter: aggregate_test_100.c2 > Int64(10)
+          TableScan: aggregate_test_100
+    "###
     );
     //
     // verify the grahviz format of the plan
@@ -233,10 +232,39 @@ async fn csv_explain_plans() {
         "// End DataFusion GraphViz Plan",
     ];
     let formatted = plan.display_graphviz().to_string();
-    let actual: Vec<&str> = formatted.trim().lines().collect();
-    assert_eq!(
-        expected, actual,
-        "\n\nexpected:\n\n{expected:#?}\nactual:\n\n{actual:#?}\n\n"
+    let actual = formatted.trim();
+    assert_snapshot!(
+        actual,
+        @r###"
+    // Begin DataFusion GraphViz Plan,
+    // display it online here: https://dreampuf.github.io/GraphvizOnline
+          
+    digraph {
+      subgraph cluster_1
+      {
+        graph[label="LogicalPlan"]
+        2[shape=box label="Explain"]
+        3[shape=box label="Projection: aggregate_test_100.c1"]
+        2 -> 3 [arrowhead=none, arrowtail=normal, dir=back]
+        4[shape=box label="Filter: aggregate_test_100.c2 > Int64(10)"]
+        3 -> 4 [arrowhead=none, arrowtail=normal, dir=back]
+        5[shape=box label="TableScan: aggregate_test_100"]
+        4 -> 5 [arrowhead=none, arrowtail=normal, dir=back]
+      }
+      subgraph cluster_6
+      {
+        graph[label="Detailed LogicalPlan"]
+        7[shape=box label="Explain\\nSchema: [plan_type:Utf8, plan:Utf8]"]
+        8[shape=box label="Projection: aggregate_test_100.c1\\nSchema: [c1:Utf8]"]
+        7 -> 8 [arrowhead=none, arrowtail=normal, dir=back]
+        9[shape=box label="Filter: aggregate_test_100.c2 > Int64(10)\\nSchema: [c1:Utf8, c2:Int8, c3:Int16, c4:Int16, c5:Int32, c6:Int64, c7:Int16, c8:Int32, c9:UInt32, c10:UInt64, c11:Float32, c12:Float64, c13:Utf8]"]
+        8 -> 9 [arrowhead=none, arrowtail=normal, dir=back]
+        10[shape=box label="TableScan: aggregate_test_100\\nSchema: [c1:Utf8, c2:Int8, c3:Int16, c4:Int16, c5:Int32, c6:Int64, c7:Int16, c8:Int32, c9:UInt32, c10:UInt64, c11:Float32, c12:Float64, c13:Utf8]"]
+        9 -> 10 [arrowhead=none, arrowtail=normal, dir=back]
+      }
+    }
+    // End DataFusion GraphViz Plan
+    "###
     );
 
     // Optimized logical plan
