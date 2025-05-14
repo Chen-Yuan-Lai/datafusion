@@ -58,6 +58,28 @@ macro_rules! assert_metrics {
     };
 }
 
+macro_rules! assert_metrics_snapshot {
+    ($ACTUAL: expr, $OPERATOR_NAME: expr, $METRICS: expr) => {
+        insta::assert_snapshot!($ACTUAL, {
+            insta::dynamic_redaction(|text, _| {
+                let lines: Vec<&str> = text
+                    .lines()
+                    .filter(|line| {
+                        line.contains($OPERATOR_NAME) && line.contains($METRICS)
+                    })
+                    .collect();
+
+                if lines.is_empty() {
+                    format!(
+                        "Can not find a line with both '{}' and '{}' in\n\n{}",
+                        $OPERATOR_NAME, $METRICS, $ACTUAL
+                    )
+                }
+            })
+        });
+    };
+}
+
 pub mod aggregates;
 pub mod create_drop;
 pub mod explain_analyze;
