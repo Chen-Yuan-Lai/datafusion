@@ -34,7 +34,7 @@ use datafusion::{execution::context::SessionContext, physical_plan::displayable}
 use datafusion_common::test_util::batches_to_sort_string;
 use datafusion_common::utils::get_available_parallelism;
 use datafusion_common::{assert_contains, assert_not_contains};
-use insta::assert_snapshot;
+use insta::{assert_snapshot, with_settings};
 use object_store::path::Path;
 use std::fs::File;
 use std::io::Write;
@@ -45,39 +45,123 @@ use tempfile::TempDir;
 ///
 /// Usage: `assert_metrics!(actual, operator_name, metrics)`
 ///
+// macro_rules! assert_metrics {
+//     ($ACTUAL: expr, $OPERATOR_NAME: expr, $METRICS: expr) => {
+//         let found = $ACTUAL
+//             .lines()
+//             .any(|line| line.contains($OPERATOR_NAME) && line.contains($METRICS));
+//         assert!(
+//             found,
+//             "Can not find a line with both '{}' and '{}' in\n\n{}",
+//             $OPERATOR_NAME, $METRICS, $ACTUAL
+//         );
+//     };
+// }
+
 macro_rules! assert_metrics {
-    ($ACTUAL: expr, $OPERATOR_NAME: expr, $METRICS: expr) => {
-        let found = $ACTUAL
-            .lines()
-            .any(|line| line.contains($OPERATOR_NAME) && line.contains($METRICS));
-        assert!(
-            found,
-            "Can not find a line with both '{}' and '{}' in\n\n{}",
-            $OPERATOR_NAME, $METRICS, $ACTUAL
+    ($output:expr, $operator:expr, $($metric_name:expr => $expected_value:expr),* $(,)?) => {{
+        // search for the operator in the output
+        let pattern = format!(
+            r"(?m)^.*{}.*metrics=\[.*\].*$",
+            regex::escape($operator)
         );
-    };
-}
 
-macro_rules! assert_metrics_snapshot {
-    ($ACTUAL: expr, $OPERATOR_NAME: expr, $METRICS: expr) => {
-        insta::assert_snapshot!($ACTUAL, {
-            insta::dynamic_redaction(|text, _| {
-                let lines: Vec<&str> = text
-                    .lines()
-                    .filter(|line| {
-                        line.contains($OPERATOR_NAME) && line.contains($METRICS)
-                    })
-                    .collect();
+        let re = regex::Regex::new(&pattern).unwrap();
+        let found_line = re.find($output);
 
-                if lines.is_empty() {
-                    format!(
-                        "Can not find a line with both '{}' and '{}' in\n\n{}",
-                        $OPERATOR_NAME, $METRICS, $ACTUAL
-                    )
+        // process the found line
+        match found_line {
+            Some(line_match) => {
+                let line = line_match.as_str();
+
+                // creare a snapshot name
+                let snapshot_name = format!("operator_metrics_{}",
+                    $operator
+                        .replace(" ", "_")
+                        .replace(":", "_")
+                        .replace("[", "_")
+                        .replace("]", "_")
+                        .replace("@", "_at_")
+                        .replace("=", "_eq_")
+                        .replace(",", "_")
+                        .replace("!", "not_")
+                );
+
+                // extract the metrics from the line
+                let mut metrics_found = true;
+                let mut metrics_verification = String::new();
+                let mut metrics_display = format!("Operator: {}\n", $operator);
+
+                // validate each metric
+                $(
+                    let metric_pattern = format!(r"{}=(\d+)", $metric_name);
+                    let metric_re = regex::Regex::new(&metric_pattern).unwrap();
+
+                    if let Some(captures) = metric_re.captures(line) {
+                        if let Some(value_match) = captures.get(1) {
+                            let actual_value = value_match.as_str();
+                            let expected_value_str = $expected_value.to_string();
+
+                            // check if the actual value matches the expected value
+                            let matches = actual_value == expected_value_str;
+                            metrics_found &= matches;
+
+                            metrics_verification.push_str(&format!(
+                                "`{}={}` {} expected `{}`\n",
+                                $metric_name,
+                                actual_value,
+                                if matches { "matches" } else { "does NOT match" },
+                                expected_value_str
+                            ));
+
+                            metrics_display.push_str(&format!(
+                                "{}={}\n",
+                                $metric_name,
+                                actual_value
+                            ));
+                        } else {
+                            metrics_found = false;
+                            metrics_verification.push_str(&format!(
+                                "Metric `{}` found but value could not be parsed\n",
+                                $metric_name
+                            ));
+                        }
+                    } else {
+                        metrics_found = false;
+                        metrics_verification.push_str(&format!(
+                            "Metric `{}` NOT found (expected value: {})\n",
+                            $metric_name,
+                            $expected_value
+                        ));
+                    }
+                )*
+
+                // add original line to the metrics display
+                metrics_display.push_str("\nOriginal Line:\n");
+                metrics_display.push_str(line);
+
+                // use insta to create a snapshot
+                with_settings!({
+                    filters => vec![
+                        // filter out the elapsed time
+                        (r"elapsed_compute=\d+(\.\d+)?", "elapsed_compute=[elapsed_time]"),
+                        (r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+", "[timestamp]"),
+                        (r"(memory_reservation|peak_memory_reservation)=\d+", "$1=[memory]"),
+                    ],
+                    description => format!("{}\n\nVerification:\n{}", $operator, metrics_verification),
+                }, {
+                    assert_snapshot!(snapshot_name, metrics_display);
+                });
+
+                if !metrics_found {
+                    panic!("Metrics verification failed for operator '{}':\n{}", $operator, metrics_verification);
                 }
-            })
-        });
-    };
+            },
+            None => {
+                panic!("Could not find operator '{}' in output:\n{}", $operator, $output);
+            }
+        }
+    }};
 }
 
 pub mod aggregates;
