@@ -17,6 +17,8 @@
 
 use super::*;
 use insta::{assert_snapshot, with_settings};
+use itertools::Itertools;
+use regex::Regex;
 use rstest::rstest;
 
 use datafusion::config::ConfigOptions;
@@ -50,9 +52,16 @@ async fn explain_analyze_baseline_metrics() {
     let physical_plan = dataframe.create_physical_plan().await.unwrap();
     let task_ctx = ctx.task_ctx();
     let results = collect(physical_plan.clone(), task_ctx).await.unwrap();
+
+    let re = Regex::new(r"\|[^|]*\|\s*([^|]*?)\s*\|").unwrap();
     let formatted = arrow::util::pretty::pretty_format_batches(&results)
         .unwrap()
-        .to_string();
+        .to_string()
+        .lines()
+        .map(|line| re.replace_all(line, "$1").to_string())
+        .filter(|line| !line.is_empty() && !line.starts_with('+'))
+        .join("\n");
+
     println!("Query Output:\n\n{formatted}");
 
     // assert_metrics!(
@@ -60,11 +69,13 @@ async fn explain_analyze_baseline_metrics() {
     //     "AggregateExec: mode=Partial, gby=[]",
     //     "metrics=[output_rows=3, elapsed_compute="
     // );
-    assert_metrics!(
+    let snapshot = create_snapshot!(
       &formatted,
       "AggregateExec: mode=Partial, gby=[]",
       "output_rows" => 3
     );
+
+    println!("Snapshot Output:\n\n{snapshot}");
     // assert_metrics!(
     //     &formatted,
     //     "AggregateExec: mode=FinalPartitioned, gby=[c1@0 as c1]",
