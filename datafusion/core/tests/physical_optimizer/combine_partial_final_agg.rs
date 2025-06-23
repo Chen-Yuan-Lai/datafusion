@@ -53,14 +53,7 @@ macro_rules! assert_optimized {
         let optimized = optimizer.optimize($PLAN, &config)?;
         // Now format correctly
         let plan = displayable(optimized.as_ref()).indent(true).to_string();
-        // let actual_lines = trim_plan_display(&plan);
         let actual_lines = plan.trim();
-
-        // assert_eq!(
-        //     &expected_lines, &actual_lines,
-        //     "\n\nexpected:\n\n{:#?}\nactual:\n\n{:#?}\n\n",
-        //     expected_lines, actual_lines
-        // );
 
         assert_snapshot!(actual_lines, @ $EXPECTED_LINES);
     };
