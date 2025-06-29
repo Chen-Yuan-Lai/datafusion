@@ -1225,12 +1225,7 @@ async fn test_sort_merge_join_order_by_left() -> Result<()> {
                 ]
             }
         };
-        assert_optimized!(
-            @ "",
-            @ "",
-            physical_plan,
-            true
-        );
+        assert_optimized!(expected_input, expected_optimized, physical_plan, true);
     }
     Ok(())
 }
